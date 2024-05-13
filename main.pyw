@@ -114,8 +114,9 @@ def create_custom_title_bar(root, title, color):
 
 
 # Function to start a new time entry with the description provided by the user
+global toggl_entry_running
 def start_time_entry(username, password, description,entry_widget):
-    if description == "":
+    if description == "" or timer_value == 0: # Start Only If Timer is set and Input Bos is not empty
         beh.sound_window_if_empty()
     else:
         credentials = (username, password)
@@ -141,9 +142,12 @@ def start_time_entry(username, password, description,entry_widget):
             print('Time entry started successfully.')
             show_red_dot()
             root.update_idletasks()  # Update the mainloop to reflect changes
+            start_timer()
+            toggl_entry_running = True
         else:
             print(f'Failed to start time entry. Status code: {response.status_code}')
             print(f'Response: {response.text}')
+
     root.focus_set()  # Set focus back to the main window
 
 # Function to stop the current time entry and clear the input line
@@ -171,7 +175,8 @@ def stop_current_time_entry(username, password, entry_widget):
                 entry_widget.delete(0, tk.END)  # Clear the input line
                 hide_red_dot()
                 root.update_idletasks()  # Update the mainloop to reflect changes
-
+                toggl_entry_running = False
+                reset_timer()
             else:
                 print(f'Failed to stop time entry. Status code: {stop_response.status_code}')
                 print(f'Response: {stop_response.text}')
@@ -179,7 +184,94 @@ def stop_current_time_entry(username, password, entry_widget):
             print('No running time entry found.')
     else:
         print('Failed to retrieve the current time entry or no JSON response received.')
+
     root.focus_set()  # Set focus back to the main window
+
+
+
+# Timer Functionality
+def play_sound():
+    # Function to play sound for 5 seconds
+    print("Beep! (sound plays for 5 seconds)")
+    # Simulate sound playing
+    time.sleep(5)  # This would block the GUI; replace with actual non-blocking sound play in real use
+
+
+timer_value = 0
+timer_active = False
+save_timer_id = None  # Ensure the timer ID is initialized
+display_timer_id = None  # Initialize display timer ID
+timer_blocked = False
+
+def increment_time(event=None):
+    global timer_value, timer_blocked, save_timer_id
+    # Only increment if the timer is not blocked
+    if not timer_blocked:
+        timer_value += 15
+        timer_display.config(text=f"{timer_value}")  # Display minutes more clearly
+
+        # Block further increments
+        timer_blocked = False
+        # Cancel any previous unexecuted after calls to block increment
+        if save_timer_id:
+            root.after_cancel(save_timer_id)
+        # Set a timer to unblock after 5 seconds
+        save_timer_id = root.after(5000, toggle_increment)
+
+def toggle_increment():
+    global timer_blocked   
+    # Allow incrementing after 5 seconds
+    if timer_blocked == True:
+        timer_blocked = False
+    else:
+        timer_blocked = True
+
+
+def start_timer():
+    global timer_active, display_timer_id, timer_value
+    # Only start if the timer is not active and has a value greater than zero
+    print('I will start countdows')
+    if not timer_active and timer_value > 0:
+        timer_active = True
+        timer_value += 1
+        countdown()
+
+def countdown():
+    global timer_value, timer_display, timer_active
+    if timer_value > 0:
+        root.after(60000, countdown)  # Continue countdown each minute
+        timer_value -= 1
+        update_display()
+    else:
+        timer_active = False
+        timer_display.config(text="")
+        play_sound()  # Assuming a play_sound function exists to alert the user
+
+def reset_timer():
+    global timer_value, timer_display, timer_active
+    timer_value = 0
+    toggle_increment()
+    update_display()
+
+def update_display():
+    # Update the timer display with the current value
+    timer_display.config(text=f"{timer_value}")
+
+def play_sound():
+    # Function to play sound for 5 seconds
+    print("Beep! (sound plays for 5 seconds)")
+    # In an actual application, use a non-blocking method to play sound
+
+
+
+#button functions
+
+def update_red_dot_position(event):
+    # Calculate the new right edge based on the current window width
+    right_edge = event.width - (event.width/7) + 300  # 40 pixels from the right edge
+    print(event.width)
+    indicator_canvas.place(x=right_edge, y=80)
+
 
 # Create the main window
 
@@ -193,8 +285,8 @@ except singleton.SingleInstanceException:
 
 try:
     root = tk.Tk()
-    width_window = 350
-    height_window = 130
+    width_window = 350 #350
+    height_window = 130 #130
     root.title("Focus Fence Toggl")
     root.attributes('-topmost', True)
     
@@ -203,6 +295,14 @@ try:
 
     # Set the initial size and position of the window (width x height + x_offset + y_offset)
     root.geometry(f'{width_window}x{height_window}+1500+200')
+
+    #timer_display = ttk.Label(root, text='0', font=('Helvetica'),  foreground='white')
+    # Timer display configuration with a fixed size
+    timer_display = ttk.Label(root, text='0', style='TLabel',font=('Helvetica'),  width=3)
+    timer_display.pack(side='left', padx=(10, 10), pady=2, anchor='center')
+
+
+    timer_display.bind('<Button-1>', increment_time)
 
 
 
@@ -240,7 +340,7 @@ try:
     entry_font = tkFont.Font(size=12)
 
     # Create an entry widget for user input
-    entry = ttk.Entry(root, width=50, font=entry_font)
+    entry = ttk.Entry(root, width=35, font=entry_font)
     entry.pack(padx=10, pady=10)
 
     # Create a frame to hold the buttons in a horizontal layout
@@ -252,12 +352,14 @@ try:
     # Create a canvas for the red dot indicator
     indicator_canvas = tk.Canvas(root, width=20, height=20, bg='#333333', highlightthickness=0)
     red_dot = indicator_canvas.create_oval(5, 5, 15, 15, fill='red')
-    indicator_canvas.itemconfigure(red_dot, state='hidden')  # Hide the red dot initially
-    indicator_canvas.pack(pady=5)
+    indicator_canvas.itemconfig(red_dot, state='hidden')  # Initially hide the red dot
+    indicator_canvas.pack(side='top', pady=5)  # Pack or place your canvas as needed
+
+    # Bind the resize event to dynamically adjust the red dot's position
+    root.bind('<Configure>', update_red_dot_position)
 
     # Position the canvas in the top left corner of the window
-    indicator_canvas.place(x=width_window-25, y=height_window-47)
-
+    # Position the red dot indicator more prominently
 
     # Create a 'Start' button
     start_button = ttk.Button(button_frame, text="Start",  width=15, command=lambda: start_time_entry(togg_nickname, togg_pass, entry.get(),entry))
@@ -296,10 +398,6 @@ try:
     root.bind('<Button-1>', start_drag)
     # Bind the mouse movement event to the function that performs the drag
     root.bind('<B1-Motion>',  on_drag)
-
-
-
-
 
 
     # Start the Tkinter event loop

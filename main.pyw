@@ -207,7 +207,10 @@ def increment_time(event=None):
     global timer_value, timer_blocked, save_timer_id
     # Only increment if the timer is not blocked
     if not timer_blocked:
-        timer_value += 15
+        if timer_value <45:
+            timer_value += 5
+        else:
+            timer_value += 15
         timer_display.config(text=f"{timer_value}")  # Display minutes more clearly
 
         # Block further increments
@@ -216,7 +219,7 @@ def increment_time(event=None):
         if save_timer_id:
             root.after_cancel(save_timer_id)
         # Set a timer to unblock after 5 seconds
-        save_timer_id = root.after(5000, toggle_increment)
+        save_timer_id = root.after(10000, toggle_increment)
 
 def toggle_increment():
     global timer_blocked   
@@ -251,16 +254,27 @@ def reset_timer():
     global timer_value, timer_display, timer_active
     timer_value = 0
     toggle_increment()
+    play_sound('static/sounds/sound.mp3')
     update_display()
+    stop_current_time_entry()
 
 def update_display():
     # Update the timer display with the current value
     timer_display.config(text=f"{timer_value}")
 
-def play_sound():
-    # Function to play sound for 5 seconds
-    print("Beep! (sound plays for 5 seconds)")
-    # In an actual application, use a non-blocking method to play sound
+def play_sound(filename):
+    # Initialize Pygame Mixer
+    pygame.mixer.init()
+    # Load the sound file
+    sound = pygame.mixer.Sound(filename)
+    # Play the sound
+    sound.play()
+    # Keep the script running until the sound is playing
+    while pygame.mixer.get_busy():  
+        pygame.time.Clock().tick(10)  # Use a small delay to prevent high CPU usage
+    
+    # Quit the mixer
+    pygame.mixer.quit()
 
 
 
